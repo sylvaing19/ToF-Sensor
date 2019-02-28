@@ -1,0 +1,9 @@
+# Visual studio + visual micro
+
+.vs/
+Debug/
+*.sln
+__vm/
+*.vcxproj
+*.vcxproj.filters
+*.vscode
