@@ -6,4 +6,5 @@ Debug/
 __vm/
 *.vcxproj
 *.vcxproj.filters
+*.vcxproj.user
 *.vscode
