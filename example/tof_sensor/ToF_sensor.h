@@ -2,10 +2,11 @@
 #define TOF_SENSOR_h
 
 #include <Arduino.h>
-#include <VL6180X.h>
-#include <VL53L0X.h>
+#include "VL6180X.h"
+#include "VL53L0X.h"
+#include "Median.h"
 
-typedef uint8_t SensorValue;
+typedef int32_t SensorValue;
 enum SensorMetadata
 {
     SENSOR_DEAD = 0x00,
@@ -14,132 +15,128 @@ enum SensorMetadata
     NO_OBSTACLE = 0x03
 };
 
-
 class ToF_sensor
 {
 public:
-    ToF_sensor()
-    {
-        name = "";
-        i2cAddress = 80;
-        pinStandby = 13;
-        minRange = 0;
-        maxRange = 0;
-        isON = false;
-        sensorValue = (SensorValue)SENSOR_DEAD;
-        initialized = false;
-    }
-
-    ToF_sensor(const char* name, uint8_t address, uint8_t pinStandby,
-            uint16_t minRange, uint16_t maxRange) :
-        name(name)
-    {
-        sensorValue = (SensorValue)SENSOR_DEAD;
-        i2cAddress = address;
-        this->pinStandby = pinStandby;
-        this->minRange = minRange;
-        this->maxRange = maxRange;
-        standby();
-        vlSensor.setTimeout(500);
-        initialized = true;
-    }
+    ToF_sensor();
+    ToF_sensor(uint8_t address, uint8_t pinStandby, int32_t minRange,
+        int32_t maxRange, const char* name = "", Stream *debug = nullptr);
 
     /* Set I2C timeout (ms) */
     virtual void setTimeout(uint16_t timeout) = 0;
 
-    virtual int measureDistance(uint16_t &distance) = 0;
+    SensorValue getMeasure();
+    void standby();
+    int powerON();
 
-    SensorValue getMesure()
+protected:
+    virtual int init() = 0;
+    virtual int measureDistance(int32_t &distance) = 0;
+
+    size_t print(const char *str)
     {
-        if (!initialized)
+        if (debug_stream == nullptr)
         {
-            return (SensorValue)SENSOR_DEAD;
-        }
-        if (isON)
-        {
-            uint16_t distance = vlSensor.readRangeContinuousMillimeters();
-            if (vlSensor.timeoutOccurred() || vlSensor.last_status != 0)
-            {
-                sensorValue = (SensorValue)SENSOR_DEAD;
-                standby();
-                Serial.print("Sensor ");
-                Serial.print(name);
-                Serial.println(" timed out, RIP");
-            }
-            else if (distance > maxRange)
-            {
-                sensorValue = (SensorValue)NO_OBSTACLE;
-            }
-            else if (distance < minRange)
-            {
-                sensorValue = (SensorValue)OBSTACLE_TOO_CLOSE;
-            }
-            else
-            {
-                sensorValue = (SensorValue)(constrain(distance, 0, UINT8_MAX));
-            }
-        }
-        else
-        {
-            sensorValue = (SensorValue)SENSOR_DEAD;
-        }
-        return sensorValue;
-    }
-
-    void standby()
-    {
-        if (initialized)
-        {
-            pinMode(pinStandby, OUTPUT);
-            digitalWrite(pinStandby, LOW);
-            isON = false;
-        }
-    }
-
-    int powerON()
-    {
-        if (!initialized)
-        {
-            return -1;
-        }
-        Serial.print("PowerOn ToF ");
-        Serial.print(name);
-        Serial.print("...");
-        pinMode(pinStandby, INPUT);
-        delay(50);
-        if (vlSensor.init())
-        {
-            vlSensor.configureDefault();
-            vlSensor.setAddress(i2cAddress);
-
-            vlSensor.writeReg(VL6180X::SYSRANGE__MAX_CONVERGENCE_TIME, 12);
-
-            vlSensor.stopContinuous();
-            delay(100);
-            vlSensor.startRangeContinuous(20);
-            isON = true;
-            Serial.println("OK");
             return 0;
         }
         else
         {
-            standby();
-            Serial.println("NOT OK");
-            return -1;
+            return debug_stream->print(str);
         }
     }
 
-private:
-    bool initialized;
-    uint8_t i2cAddress, pinStandby;
-    SensorValue sensorValue;
-    uint16_t minRange;  // [mm] Toute valeur strictement inférieure est considérée comme un obstacle trop proche
-    uint16_t maxRange;  // [mm] Toute valeur strictement supérieure est considérée comme une absence d'obstacle
+    bool fully_defined;
+    uint8_t i2cAddress;
+    uint8_t pinStandby;
+    int32_t minRange;  // [mm] Toute valeur strictement inférieure est considérée comme un obstacle trop proche
+    int32_t maxRange;  // [mm] Toute valeur strictement supérieure est considérée comme une absence d'obstacle
     bool isON;
-    VL6180X vlSensor;
+    Stream *debug_stream;
 
 public:
     const char* name;
+};
+
+class ToF_shortRange : public ToF_sensor
+{
+public:
+    ToF_shortRange() {}
+    ToF_shortRange(uint8_t address, uint8_t pinStandby, int32_t minRange = 15,
+        int32_t maxRange = 200, const char* name = "", Stream *debug = nullptr) :
+        ToF_sensor(address, pinStandby, minRange, maxRange, name, debug)
+    {}
+
+    void setTimeout(uint16_t timeout)
+    {
+        vlSensor.setTimeout(timeout);
+    }
+
+private:
+    int init();
+    int measureDistance(int32_t &distance);
+
+    VL6180X vlSensor;
+};
+
+template<size_t NB_VALUES>
+class ToF_shortRange_med : public ToF_shortRange
+{
+public:
+    ToF_shortRange_med() {}
+    ToF_shortRange_med(uint8_t address, uint8_t pinStandby, int32_t minRange = 15,
+        int32_t maxRange = 200, const char* name = "", Stream *debug = nullptr) :
+        ToF_shortRange(address, pinStandby, minRange, maxRange, name, debug)
+    {}
+
+    SensorValue getMeasure()
+    {
+        m_median.add(ToF_shortRange::getMeasure());
+        return m_median.value();
+    }
+
+private:
+    Median<SensorValue, NB_VALUES> m_median;
+};
+
+class ToF_longRange : public ToF_sensor
+{
+public:
+    ToF_longRange() {}
+    ToF_longRange(uint8_t address, uint8_t pinStandby, int32_t minRange = 30,
+        int32_t maxRange = 700, const char* name = "", Stream *debug = nullptr) :
+        ToF_sensor(address, pinStandby, minRange, maxRange, name, debug)
+    {}
+
+    void setTimeout(uint16_t timeout)
+    {
+        vlSensor.setTimeout(timeout);
+    }
+
+private:
+    int init();
+    int measureDistance(int32_t &distance);
+
+    VL53L0X vlSensor;
+};
+
+template<size_t NB_VALUES>
+class ToF_longRange_med : public ToF_longRange
+{
+public:
+    ToF_longRange_med() {}
+    ToF_longRange_med(uint8_t address, uint8_t pinStandby, int32_t minRange = 15,
+        int32_t maxRange = 200, const char* name = "", Stream *debug = nullptr) :
+        ToF_longRange(address, pinStandby, minRange, maxRange, name, debug)
+    {}
+
+    SensorValue getMeasure()
+    {
+        m_median.add(ToF_longRange::getMeasure());
+        return m_median.value();
+    }
+
+private:
+    Median<SensorValue, NB_VALUES> m_median;
 };
 
 

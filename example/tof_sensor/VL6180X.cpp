@@ -31,13 +31,13 @@ void VL6180X::setAddress(uint8_t new_addr)
 
 // Initialize sensor with settings from ST application note AN4545, section 9 -
 // "Mandatory : private registers"
-bool VL6180X::init()
+int VL6180X::init()
 {
   // Store part-to-part range offset so it can be adjusted if scaling is changed
   ptp_offset = readReg(SYSRANGE__PART_TO_PART_RANGE_OFFSET);
   if (last_status != 0)
   {
-    return false;
+    return EXIT_FAILURE;
   }
 
   if (readReg(SYSTEM__FRESH_OUT_OF_RESET) == 1)
@@ -78,7 +78,7 @@ bool VL6180X::init()
     writeReg(SYSTEM__FRESH_OUT_OF_RESET, 0);
     if (last_status != 0)
     {
-      return false;
+      return EXIT_FAILURE;
     }
   }
   else
@@ -99,10 +99,10 @@ bool VL6180X::init()
     ptp_offset *= scaling;
     if (last_status != 0)
     {
-      return false;
+      return EXIT_FAILURE;
     }
   }
-  return true;
+  return EXIT_SUCCESS;
 }
 
 // Configure some settings for the sensor's default behavior from AN4545 -
