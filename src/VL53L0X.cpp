@@ -71,6 +71,10 @@ bool VL53L0X::init(bool io_2v8)
   // "Set I2C standard mode"
   writeReg(0x88, 0x00);
 
+  if (last_status != 0) {
+      return false;
+  }
+
   writeReg(0x80, 0x01);
   writeReg(0xFF, 0x01);
   writeReg(0x00, 0x00);
@@ -275,7 +279,7 @@ bool VL53L0X::init(bool io_2v8)
 
   // VL53L0X_PerformRefCalibration() end
 
-  return true;
+  return last_status == 0;
 }
 
 // Write an 8-bit register

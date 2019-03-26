@@ -124,8 +124,8 @@ class ToF_longRange_med : public ToF_longRange
 {
 public:
     ToF_longRange_med() {}
-    ToF_longRange_med(uint8_t address, uint8_t pinStandby, int32_t minRange = 15,
-        int32_t maxRange = 200, const char* name = "", Stream *debug = nullptr) :
+    ToF_longRange_med(uint8_t address, uint8_t pinStandby, int32_t minRange = 30,
+        int32_t maxRange = 700, const char* name = "", Stream *debug = nullptr) :
         ToF_longRange(address, pinStandby, minRange, maxRange, name, debug)
     {}
 

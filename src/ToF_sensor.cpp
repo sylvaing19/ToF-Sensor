@@ -1,7 +1,7 @@
 #include "ToF_sensor.h"
 
 #define TOF_SENSOR_I2C_TIMEOUT          50  // ms
-#define TOF_SENSOR_I2C_TIMEOUT_STARTUP  500 // ms
+#define TOF_SENSOR_I2C_TIMEOUT_STARTUP  200 // ms
 #define TOF_SENSOR_INIT_DELAY           50  // ms
 #define TOF_SENSOR_SHORT_RANGE_UPDATE_PERIOD    20  // ms
 
