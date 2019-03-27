@@ -864,6 +864,19 @@ uint16_t VL53L0X::readRangeSingleMillimeters(void)
   return readRangeContinuousMillimeters();
 }
 
+// Return true if data was available and read, false otherwise (in that case parameters are not set)
+bool VL53L0X::readAllRangeData(uint8_t &status, uint16_t &quality, uint16_t &distance)
+{
+    bool dataAvailable = readReg(RESULT_INTERRUPT_STATUS) & 0x07;
+    if (dataAvailable) {
+        status = readReg(RESULT_RANGE_STATUS);
+        quality = readReg16Bit(RESULT_RANGE_QUALITY);
+        distance = readReg16Bit(RESULT_RANGE_VALUE);
+        writeReg(SYSTEM_INTERRUPT_CLEAR, 0x01);
+    }
+    return dataAvailable && last_status == 0;
+}
+
 // Did a timeout occur in one of the read functions since the last call to
 // timeoutOccurred()?
 bool VL53L0X::timeoutOccurred()

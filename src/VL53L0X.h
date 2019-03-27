@@ -26,6 +26,9 @@ class VL53L0X
 
       RESULT_INTERRUPT_STATUS                     = 0x13,
       RESULT_RANGE_STATUS                         = 0x14,
+      RESULT_RANGE_QUALITY                        = 0x1A,
+      RESULT_AMBIENT_LIGHT                        = 0x1C,
+      RESULT_RANGE_VALUE                          = 0x1E,
 
       RESULT_CORE_AMBIENT_WINDOW_EVENTS_RTN       = 0xBC,
       RESULT_CORE_RANGING_TOTAL_EVENTS_RTN        = 0xC0,
@@ -126,6 +129,7 @@ class VL53L0X
     void stopContinuous(void);
     uint16_t readRangeContinuousMillimeters(void);
     uint16_t readRangeSingleMillimeters(void);
+    bool readAllRangeData(uint8_t &status, uint16_t &quality, uint16_t &distance);
 
     inline void setTimeout(uint16_t timeout) { io_timeout = timeout; }
     inline uint16_t getTimeout(void) { return io_timeout; }

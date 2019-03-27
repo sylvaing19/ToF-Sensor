@@ -4,6 +4,7 @@
 #define TOF_SENSOR_I2C_TIMEOUT_STARTUP  200 // ms
 #define TOF_SENSOR_INIT_DELAY           50  // ms
 #define TOF_SENSOR_SHORT_RANGE_UPDATE_PERIOD    20  // ms
+#define TOF_SENSOR_LONG_RANGE_MIN_QUALITY       100 // Unknown unit and meaning (due to the lack of documentation from ST)
 
 ToF_sensor::ToF_sensor()
 {
@@ -40,11 +41,7 @@ SensorValue ToF_sensor::getMeasure()
 
     if (ret != EXIT_SUCCESS)
     {
-        sensorValue = (SensorValue)SENSOR_DEAD;
-        standby();
-        print("Sensor ");
-        print(name);
-        print(" timed out, RIP\n");
+        sensorValue = (SensorValue)SENSOR_NOT_UPDATED;
     }
     else if (distance > maxRange)
     {
@@ -147,13 +144,26 @@ int ToF_longRange::init()
 
 int ToF_longRange::measureDistance(int32_t &distance)
 {
-    distance = vlSensor.readRangeContinuousMillimeters();
-    if (vlSensor.timeoutOccurred() || vlSensor.last_status != 0)
+    uint8_t status;
+    uint16_t quality;
+    uint16_t range;
+    if (vlSensor.readAllRangeData(status, quality, range))
     {
-        return EXIT_FAILURE;
+        if (status & 0x04) {
+            return EXIT_FAILURE;
+        }
+        if ((status & 0x78) >> 3 == 0x0B && 
+            quality > TOF_SENSOR_LONG_RANGE_MIN_QUALITY) {
+            distance = (int32_t)range;
+        }
+        else {
+            distance = INT32_MAX;
+        }
+
+        return EXIT_SUCCESS;
     }
     else
     {
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 }
