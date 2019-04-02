@@ -374,6 +374,16 @@ uint8_t VL6180X::readRangeContinuous()
   return range;
 }
 
+bool VL6180X::fastReadRange(uint8_t &range)
+{
+    bool dataAvailable = readReg(RESULT__INTERRUPT_STATUS_GPIO) & 0x04;
+    if (dataAvailable) {
+        range = readReg(RESULT__RANGE_VAL);
+        writeReg(SYSTEM__INTERRUPT_CLEAR, 0x01);
+    }
+    return dataAvailable && last_status == 0;
+}
+
 // Returns an ambient light reading when continuous mode is activated
 // (readAmbientSingle() also calls this function after starting a single-shot
 // ambient light measurement)

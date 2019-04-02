@@ -115,14 +115,15 @@ int ToF_shortRange::init()
 
 int ToF_shortRange::measureDistance(int32_t &distance)
 {
-    distance = vlSensor.readRangeContinuousMillimeters();
-    if (vlSensor.timeoutOccurred() || vlSensor.last_status != 0)
+    uint16_t range;
+    if (vlSensor.fastReadRangeMillimeters(range))
     {
-        return EXIT_FAILURE;
+        distance = (int32_t)range;
+        return EXIT_SUCCESS;
     }
     else
     {
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 }
 

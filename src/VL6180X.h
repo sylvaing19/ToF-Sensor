@@ -114,6 +114,15 @@ class VL6180X
     inline uint16_t readRangeContinuousMillimeters(void) { return (uint16_t)scaling * readRangeContinuous(); }
     uint16_t readAmbientContinuous(void);
 
+    bool fastReadRange(uint8_t &range);
+    bool fastReadRangeMillimeters(uint16_t &range)
+    {
+        uint8_t r;
+        bool ret = fastReadRange(r);
+        range = (uint16_t)scaling * r;
+        return ret;
+    }
+
     inline void setTimeout(uint16_t timeout) { io_timeout = timeout; }
     inline uint16_t getTimeout(void) { return io_timeout; }
     bool timeoutOccurred(void);
