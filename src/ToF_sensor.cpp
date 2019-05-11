@@ -4,7 +4,7 @@
 #define TOF_SENSOR_I2C_TIMEOUT_STARTUP  200 // ms
 #define TOF_SENSOR_INIT_DELAY           50  // ms
 #define TOF_SENSOR_SHORT_RANGE_UPDATE_PERIOD    20  // ms
-#define TOF_SENSOR_LONG_RANGE_MIN_QUALITY       100 // Unknown unit and meaning (due to the lack of documentation from ST)
+#define TOF_SENSOR_LONG_RANGE_MIN_QUALITY       250 // Unknown unit and meaning (due to the lack of documentation from ST)
 
 ToF_sensor::ToF_sensor()
 {
