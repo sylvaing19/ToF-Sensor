@@ -26,12 +26,13 @@ public:
     virtual void setTimeout(uint16_t timeout) = 0;
 
     SensorValue getMeasure();
-    void standby();
+    virtual void standby() = 0;
     int powerON();
 
 protected:
     virtual int init() = 0;
     virtual int measureDistance(int32_t &distance) = 0;
+    void writeStandby();
 
     size_t print(const char *str)
     {
@@ -69,6 +70,12 @@ public:
     void setTimeout(uint16_t timeout)
     {
         vlSensor.setTimeout(timeout);
+    }
+
+    void standby()
+    {
+        writeStandby();
+        vlSensor.resetAddress();
     }
 
 private:
@@ -110,6 +117,12 @@ public:
     void setTimeout(uint16_t timeout)
     {
         vlSensor.setTimeout(timeout);
+    }
+
+    void standby()
+    {
+        writeStandby();
+        vlSensor.resetAddress();
     }
 
 private:

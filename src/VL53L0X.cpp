@@ -49,6 +49,11 @@ void VL53L0X::setAddress(uint8_t new_addr)
   address = new_addr;
 }
 
+void VL53L0X::resetAddress()
+{
+    address = ADDRESS_DEFAULT;
+}
+
 // Initialize sensor using sequence based on VL53L0X_DataInit(),
 // VL53L0X_StaticInit(), and VL53L0X_PerformRefCalibration().
 // This function does not perform reference SPAD calibration
@@ -868,13 +873,14 @@ uint16_t VL53L0X::readRangeSingleMillimeters(void)
 bool VL53L0X::readAllRangeData(uint8_t &status, uint16_t &quality, uint16_t &distance)
 {
     bool dataAvailable = readReg(RESULT_INTERRUPT_STATUS) & 0x07;
-    if (dataAvailable) {
+    if (dataAvailable && last_status == 0) {
         status = readReg(RESULT_RANGE_STATUS);
         quality = readReg16Bit(RESULT_RANGE_QUALITY);
         distance = readReg16Bit(RESULT_RANGE_VALUE);
         writeReg(SYSTEM_INTERRUPT_CLEAR, 0x01);
+        return last_status == 0;
     }
-    return dataAvailable && last_status == 0;
+    return false;
 }
 
 // Did a timeout occur in one of the read functions since the last call to

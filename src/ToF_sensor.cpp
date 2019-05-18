@@ -25,7 +25,7 @@ ToF_sensor::ToF_sensor(uint8_t address, uint8_t pinStandby, int32_t minRange,
 {
     isON = false;
     fully_defined = true;
-    standby();
+    writeStandby();
 }
 
 SensorValue ToF_sensor::getMeasure()
@@ -59,7 +59,7 @@ SensorValue ToF_sensor::getMeasure()
     return sensorValue;
 }
 
-void ToF_sensor::standby()
+void ToF_sensor::writeStandby()
 {
     if (fully_defined)
     {
@@ -90,7 +90,7 @@ int ToF_sensor::powerON()
     }
     else
     {
-        standby();
+        writeStandby();
         print("NOT OK\n");
     }
     setTimeout(TOF_SENSOR_I2C_TIMEOUT);

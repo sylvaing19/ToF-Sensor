@@ -29,6 +29,11 @@ void VL6180X::setAddress(uint8_t new_addr)
   address = new_addr;
 }
 
+void VL6180X::resetAddress()
+{
+    address = ADDRESS_DEFAULT;
+}
+
 // Initialize sensor with settings from ST application note AN4545, section 9 -
 // "Mandatory : private registers"
 int VL6180X::init()

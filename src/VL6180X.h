@@ -86,6 +86,7 @@ class VL6180X
     VL6180X(void);
 
     void setAddress(uint8_t new_addr);
+    void resetAddress();
 
     int init(void);
 
