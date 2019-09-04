@@ -6,6 +6,8 @@
 #include "VL53L0X.h"
 #include "Median.h"
 
+#define TOF_DEFAULT_QUALITY_THRESHOLD 250
+
 typedef int32_t SensorValue;
 enum SensorMetadata
 {
@@ -27,12 +29,19 @@ public:
 
     SensorValue getMeasure();
     virtual void standby() = 0;
-    int powerON();
+    int powerON(bool autoStart = true, uint32_t period = 0);
+    void startMeasurement(uint32_t period = 0);
+    void stopMeasurement();
+    void setRange(int32_t aMin, int32_t aMax);
+    bool measurementStarted() const { return started; }
 
 protected:
-    virtual int init() = 0;
+    virtual int init(bool autoStart, uint32_t period) = 0;
+    virtual void start(uint32_t period) = 0;
+    virtual void stop() = 0;
     virtual int measureDistance(int32_t &distance) = 0;
     void writeStandby();
+    SensorValue interpretMeasure(int32_t distance);
 
     size_t print(const char *str)
     {
@@ -47,6 +56,7 @@ protected:
     }
 
     bool fully_defined;
+    bool started;
     uint8_t i2cAddress;
     uint8_t pinStandby;
     int32_t minRange;  // [mm] Toute valeur strictement inférieure est considérée comme un obstacle trop proche
@@ -79,7 +89,9 @@ public:
     }
 
 private:
-    int init();
+    int init(bool autoStart, uint32_t period);
+    void start(uint32_t period);
+    void stop();
     int measureDistance(int32_t &distance);
 
     VL6180X vlSensor;
@@ -110,13 +122,22 @@ class ToF_longRange : public ToF_sensor
 public:
     ToF_longRange() {}
     ToF_longRange(uint8_t address, uint8_t pinStandby, int32_t minRange = 30,
-        int32_t maxRange = 700, const char* name = "", Stream *debug = nullptr) :
+        int32_t maxRange = 700,
+        uint16_t aQualityThreshold = TOF_DEFAULT_QUALITY_THRESHOLD,
+        const char* name = "", Stream *debug = nullptr) :
         ToF_sensor(address, pinStandby, minRange, maxRange, name, debug)
-    {}
+    {
+        qualityThreshold = aQualityThreshold;
+    }
 
     void setTimeout(uint16_t timeout)
     {
         vlSensor.setTimeout(timeout);
+    }
+
+    void setQualityThreshold(uint16_t aQualityThreshold)
+    {
+        qualityThreshold = aQualityThreshold;
     }
 
     void standby()
@@ -125,11 +146,18 @@ public:
         vlSensor.resetAddress();
     }
 
+    int getFullMeasure(SensorValue &range, uint16_t &raw_range, uint16_t &quality);
+
 private:
-    int init();
+    int init(bool autoStart, uint32_t period);
+    void start(uint32_t period);
+    void stop();
     int measureDistance(int32_t &distance);
+    int getRawMeasure(int32_t &distance, uint16_t &quality, uint16_t &raw_range);
+    int32_t computeQuality(uint8_t status, uint16_t quality, uint16_t raw_range);
 
     VL53L0X vlSensor;
+    uint16_t qualityThreshold; // Unknown unit and meaning (due to the lack of documentation from ST)
 };
 
 template<size_t NB_VALUES>

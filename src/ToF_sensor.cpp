@@ -3,8 +3,7 @@
 #define TOF_SENSOR_I2C_TIMEOUT          50  // ms
 #define TOF_SENSOR_I2C_TIMEOUT_STARTUP  200 // ms
 #define TOF_SENSOR_INIT_DELAY           50  // ms
-#define TOF_SENSOR_SHORT_RANGE_UPDATE_PERIOD    20  // ms
-#define TOF_SENSOR_LONG_RANGE_MIN_QUALITY       250 // Unknown unit and meaning (due to the lack of documentation from ST)
+#define TOF_SENSOR_SHORT_RANGE_DEF_UP_P 20  // ms (default update period for short range sensor)
 
 ToF_sensor::ToF_sensor()
 {
@@ -16,6 +15,7 @@ ToF_sensor::ToF_sensor()
     isON = false;
     debug_stream = nullptr;
     fully_defined = false;
+    started = false;
 }
 
 ToF_sensor::ToF_sensor(uint8_t address, uint8_t pinStandby, int32_t minRange,
@@ -25,38 +25,41 @@ ToF_sensor::ToF_sensor(uint8_t address, uint8_t pinStandby, int32_t minRange,
 {
     isON = false;
     fully_defined = true;
+    started = false;
     writeStandby();
 }
 
 SensorValue ToF_sensor::getMeasure()
 {
-    SensorValue sensorValue = (SensorValue)SENSOR_DEAD;
-    if (!fully_defined || !isON)
-    {
-        return sensorValue;
+    if (!fully_defined || !isON) {
+        return (SensorValue)SENSOR_DEAD;
     }
 
-    int32_t distance = 0;
+    int32_t distance;
     int ret = measureDistance(distance);
 
-    if (ret != EXIT_SUCCESS)
-    {
-        sensorValue = (SensorValue)SENSOR_NOT_UPDATED;
+    if (ret != EXIT_SUCCESS) {
+        return (SensorValue)SENSOR_NOT_UPDATED;
     }
-    else if (distance > maxRange)
+    else {
+        return interpretMeasure(distance);
+    }
+}
+
+SensorValue ToF_sensor::interpretMeasure(int32_t distance)
+{
+    if (distance > maxRange)
     {
-        sensorValue = (SensorValue)NO_OBSTACLE;
+        return (SensorValue)NO_OBSTACLE;
     }
     else if (distance < minRange)
     {
-        sensorValue = (SensorValue)OBSTACLE_TOO_CLOSE;
+        return (SensorValue)OBSTACLE_TOO_CLOSE;
     }
     else
     {
-        sensorValue = (SensorValue)distance;
+        return (SensorValue)distance;
     }
-
-    return sensorValue;
 }
 
 void ToF_sensor::writeStandby()
@@ -69,7 +72,7 @@ void ToF_sensor::writeStandby()
     }
 }
 
-int ToF_sensor::powerON()
+int ToF_sensor::powerON(bool autoStart, uint32_t period)
 {
     if (!fully_defined)
     {
@@ -82,7 +85,7 @@ int ToF_sensor::powerON()
     pinMode(pinStandby, INPUT);
     delay(TOF_SENSOR_INIT_DELAY);
 
-    int ret = init();
+    int ret = init(autoStart, period);
     if (ret == EXIT_SUCCESS)
     {
         isON = true;
@@ -97,7 +100,29 @@ int ToF_sensor::powerON()
     return ret;
 }
 
-int ToF_shortRange::init()
+void ToF_sensor::startMeasurement(uint32_t period)
+{
+    if (fully_defined && isON) {
+        start(period);
+        started = true;
+    }
+}
+
+void ToF_sensor::stopMeasurement()
+{
+    if (fully_defined && isON) {
+        stop();
+        started = false;
+    }
+}
+
+void ToF_sensor::setRange(int32_t aMin, int32_t aMax)
+{
+    minRange = aMin;
+    maxRange = aMax;
+}
+
+int ToF_shortRange::init(bool autoStart, uint32_t period)
 {
     int ret = vlSensor.init();
     if (ret != EXIT_SUCCESS)
@@ -107,10 +132,32 @@ int ToF_shortRange::init()
     vlSensor.configureDefault();
     vlSensor.setAddress(i2cAddress);
     vlSensor.writeReg(VL6180X::SYSRANGE__MAX_CONVERGENCE_TIME, 12);
-    vlSensor.stopContinuous();
-    delay(TOF_SENSOR_INIT_DELAY);
-    vlSensor.startRangeContinuous(TOF_SENSOR_SHORT_RANGE_UPDATE_PERIOD);
+    stop();
+    if (autoStart) {
+        delay(TOF_SENSOR_INIT_DELAY);
+        start(period);
+    }
     return ret;
+}
+
+void ToF_shortRange::start(uint32_t period)
+{
+    uint16_t p;
+    if (period == 0) {
+        p = TOF_SENSOR_SHORT_RANGE_DEF_UP_P;
+    }
+    else if (period > UINT16_MAX) {
+        p = UINT16_MAX;
+    }
+    else {
+        p = period;
+    }
+    vlSensor.startRangeContinuous(p);
+}
+
+void ToF_shortRange::stop()
+{
+    vlSensor.stopContinuous();
 }
 
 int ToF_shortRange::measureDistance(int32_t &distance)
@@ -127,14 +174,16 @@ int ToF_shortRange::measureDistance(int32_t &distance)
     }
 }
 
-int ToF_longRange::init()
+int ToF_longRange::init(bool autoStart, uint32_t period)
 {
     if (vlSensor.init())
     {
         vlSensor.setAddress(i2cAddress);
-        vlSensor.stopContinuous();
-        delay(TOF_SENSOR_INIT_DELAY);
-        vlSensor.startContinuous();
+        stop();
+        if (autoStart) {
+            delay(TOF_SENSOR_INIT_DELAY);
+            start(period);
+        }
         return EXIT_SUCCESS;
     }
     else
@@ -143,28 +192,57 @@ int ToF_longRange::init()
     }
 }
 
+void ToF_longRange::start(uint32_t period)
+{
+    vlSensor.startContinuous(period);
+}
+
+void ToF_longRange::stop()
+{
+    vlSensor.stopContinuous();
+}
+
+int ToF_longRange::getFullMeasure(SensorValue &range, uint16_t &raw_range, uint16_t &quality)
+{
+    if (!fully_defined || !isON) {
+        return EXIT_FAILURE;
+    }
+    int32_t distance;
+    int ret = getRawMeasure(distance, quality, raw_range);
+    if (ret == EXIT_SUCCESS) {
+        range = interpretMeasure(distance);
+    }
+    return ret;
+}
+
 int ToF_longRange::measureDistance(int32_t &distance)
 {
-    uint8_t status;
     uint16_t quality;
-    uint16_t range;
-    if (vlSensor.readAllRangeData(status, quality, range))
-    {
+    uint16_t raw_range;
+    return getRawMeasure(distance, quality, raw_range);
+}
+
+int ToF_longRange::getRawMeasure(int32_t &distance, uint16_t &quality, uint16_t &raw_range)
+{
+    uint8_t status;
+    if (vlSensor.readAllRangeData(status, quality, raw_range)) {
         if (status & 0x04) {
             return EXIT_FAILURE;
         }
-        if ((status & 0x78) >> 3 == 0x0B && 
-            quality > TOF_SENSOR_LONG_RANGE_MIN_QUALITY) {
-            distance = (int32_t)range;
-        }
-        else {
-            distance = INT32_MAX;
-        }
-
+        distance = computeQuality(status, quality, raw_range);
         return EXIT_SUCCESS;
     }
-    else
-    {
+    else {
         return EXIT_FAILURE;
+    }
+}
+
+int32_t ToF_longRange::computeQuality(uint8_t status, uint16_t quality, uint16_t raw_range)
+{
+    if ((status & 0x78) >> 3 == 0x0B && quality > qualityThreshold) {
+        return (int32_t)raw_range;
+    }
+    else {
+        return INT32_MAX;
     }
 }
