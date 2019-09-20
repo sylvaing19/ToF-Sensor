@@ -69,6 +69,7 @@ void ToF_sensor::writeStandby()
         pinMode(pinStandby, OUTPUT);
         digitalWrite(pinStandby, LOW);
         isON = false;
+        started = false;
     }
 }
 
